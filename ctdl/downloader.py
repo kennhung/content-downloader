@@ -1,9 +1,12 @@
 import os
+import io
 import threading
 import requests
 from requests.packages.urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 from tqdm import tqdm, trange
+import http
+import socket
 
 chunk_size = 1024
 main_iter = None
@@ -19,12 +22,10 @@ retries = Retry(total = 5,
                 status_forcelist = [ 500, 502, 503, 504 ])
 s.mount('http://', HTTPAdapter(max_retries = retries))
 
-def download(url, directory, min_file_size = 0, max_file_size = -1, 
-	         no_redirects = False, pos = 0, mode = 's'):
+def download(url, wirter, min_file_size = 0, max_file_size = -1, no_redirects = False, pos = 0, mode = 's'):
     global main_it
 
     file_name = url.split('/')[-1]
-    file_address = directory + '/' + file_name
     is_redirects = not no_redirects
 
     resp = s.get(url, stream = True, allow_redirects = is_redirects)
@@ -52,12 +53,28 @@ def download(url, directory, min_file_size = 0, max_file_size = -1,
     tqdm_iter = tqdm(iterable = file_iterable, total = total_chunks, 
             unit = 'KB', position = pos, desc = blue_color + file_name, leave = False)
 
-    with open(file_address, 'wb') as f:
+    print(type(wirter))
+    if(type(wirter) == io.FileIO):
         for data in tqdm_iter:
-            f.write(data)
+            wirter.write(data)
+    elif(type(wirter) == socket.socket):
+        for data in tqdm_iter:
+            print(data)
+            wirter.send(data)
 
     if mode == 'p':
         main_iter.update(1)
+
+
+    pass
+
+def download_to_file(url, directory, min_file_size = 0, max_file_size = -1, no_redirects = False, pos = 0, mode = 's'):
+    
+    file_name = url.split('/')[-1]
+    file_address = directory + '/' + file_name
+
+    with open(file_address, 'wb') as f:
+        download(url, directory, min_file_size, max_file_size, no_redirects, pos, mode)
 
 
 def download_parallel(urls, directory, min_file_size, max_file_size, no_redirects):
